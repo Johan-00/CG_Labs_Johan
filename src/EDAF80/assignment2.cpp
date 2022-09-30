@@ -43,7 +43,8 @@ void
 edaf80::Assignment2::run()
 {
 	// Load the sphere geometry
-	auto const shape = parametric_shapes::createCircleRing(2.0f, 0.75f, 40u, 4u);
+	auto const shape = parametric_shapes::createSphere(0.15f, 10u, 10u);
+
 	if (shape.vao == 0u)
 		return;
 
@@ -51,6 +52,7 @@ edaf80::Assignment2::run()
 	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, 9.0f));
 	mCamera.mMouseSensitivity = glm::vec2(0.003f);
 	mCamera.mMovementSpeed = glm::vec3(3.0f); // 3 m/s => 10.8 km/h
+	//mCamera.mWorld.SetRotateX(glm::half_pi<float>());
 
 	// Create the shader programs
 	ShaderProgramManager program_manager;
@@ -151,6 +153,11 @@ edaf80::Assignment2::run()
 		glm::vec3(-2.0f, -1.2f, -2.0f),
 		glm::vec3(-1.0f, -1.8f, -1.0f)
 	};
+	unsigned int num_points = control_point_locations.size();
+	unsigned int point_index = 0;
+	float velocity = 1.0f;
+	float interpolation_step = 0.0f;
+
 	std::array<Node, control_point_locations.size()> control_points;
 	for (std::size_t i = 0; i < control_point_locations.size(); ++i) {
 		auto& control_point = control_points[i];
@@ -212,19 +219,19 @@ edaf80::Assignment2::run()
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 		bonobo::changePolygonMode(polygon_mode);
 
-
+		
+		
 		if (interpolate) {
-			//! \todo Interpolate the movement of a shape between various
-			//!        control points.
+
+			interpolation_step = velocity * elapsed_time_s;
+			int point_index = floor(interpolation_step);
+
 			if (use_linear) {
-				//! \todo Compute the interpolated position
-				//!       using the linear interpolation.
+				circle_rings.get_transform().SetTranslate(interpolation::evalLERP(control_point_locations[point_index % num_points], control_point_locations[(point_index + 1) % num_points], interpolation_step - point_index));
 			}
 			else {
-				//! \todo Compute the interpolated position
-				//!       using the Catmull-Rom interpolation;
-				//!       use the `catmull_rom_tension`
-				//!       variable as your tension argument.
+				circle_rings.get_transform().SetTranslate(interpolation::evalCatmullRom(control_point_locations[(point_index + num_points - 1) % num_points], control_point_locations[point_index % num_points],
+					control_point_locations[(point_index + 1) % num_points], control_point_locations[(point_index + 2) % num_points], catmull_rom_tension, interpolation_step - point_index));
 			}
 		}
 

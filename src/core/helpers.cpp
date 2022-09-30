@@ -411,7 +411,7 @@ bonobo::loadTextureCubeMap(std::string const& posx, std::string const& negx,
 	// and `glGenBuffers()` that were used in assignment 2,
 	// `glGenTextures()` can create `n` texture objects at once. Here we
 	// only one texture object that will contain our whole cube map.
-	glGenTextures(1, /*! \todo fill me */nullptr);
+	glGenTextures(1, &texture);
 	assert(texture != 0u);
 
 	// Similarly to vertex arrays and buffers, we first need to bind the
@@ -438,11 +438,18 @@ bonobo::loadTextureCubeMap(std::string const& posx, std::string const& negx,
 	// image files and return a `std::vector<std::uint8_t>` containing all the
 	// texels.
 	std::uint32_t width, height;
+
 	auto data = getTextureData(negx, width, height, false);
 	if (data.empty()) {
 		glDeleteTextures(1, &texture);
 		return 0u;
 	}
+	auto data_posx = getTextureData(posx, width, height, false);
+	auto data_negy = getTextureData(negy, width, height, false);
+	auto data_posy = getTextureData(posy, width, height, false);
+	auto data_negz = getTextureData(negz, width, height, false);
+	auto data_posz = getTextureData(posz, width, height, false);
+
 	// With all the texels available on the CPU, we now want to push them
 	// to the GPU: this is done using `glTexImage2D()` (among others). You
 	// might have thought that the target used here would be the same as
@@ -462,8 +469,16 @@ bonobo::loadTextureCubeMap(std::string const& posx, std::string const& negx,
 	             /* the type of each component */GL_UNSIGNED_BYTE,
 	             /* the pointer to the actual data on the CPU */reinterpret_cast<GLvoid const*>(data.data()));
 
-	//! \todo repeat now the texture filling for the 5 remaining faces
-
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid const*>(data_posx.data()));
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid const*>(data_negy.data()));
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid const*>(data_posy.data()));
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid const*>(data_negz.data()));
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid const*>(data_posz.data()));
 	if (generate_mipmap)
 		// Generate the mipmap hierarchy; wait for EDAN35 to understand
 		// what it does

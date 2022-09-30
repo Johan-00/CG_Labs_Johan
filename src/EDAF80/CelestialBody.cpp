@@ -22,19 +22,31 @@ glm::mat4 CelestialBody::render(std::chrono::microseconds elapsed_time,
 {
 	// Convert the duration from microseconds to seconds.
 	auto const elapsed_time_s = std::chrono::duration<float>(elapsed_time).count();
-	// If a different ratio was needed, for example a duration in
-	// milliseconds, the following would have been used:
-	// auto const elapsed_time_ms = std::chrono::duration<float, std::milli>(elapsed_time).count();
 
-	_body.spin.rotation_angle = -glm::half_pi<float>() / 2.0f;
+	//parameter uppdates
+	_body.spin.rotation_angle = _body.spin.rotation_angle + _body.spin.speed * elapsed_time_s;
+	_body.orbit.rotation_angle = _body.orbit.rotation_angle + _body.orbit.speed * elapsed_time_s;
 
-	glm::mat4 world = parent_transform;
+
+
+	glm::mat4 S = scale(glm::mat4(1.0f), _body.scale);
+	glm::mat4 R1s = rotate(glm::mat4(1.0f), _body.spin.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 R2s = rotate(glm::mat4(1.0f), _body.spin.axial_tilt, glm::vec3(0.0f, 0.0f, 1.0f));
+
+	
+
+	glm::mat4 To = translate(glm::mat4(1.0f), glm::vec3(_body.orbit.radius, 0.0f, 0.0f));
+	glm::mat4 R1o = rotate(glm::mat4(1.0f), _body.orbit.rotation_angle, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 R2o = rotate(glm::mat4(1.0f), _body.orbit.inclination, glm::vec3(0.0f, 0.0f, 1.0f));
+
+	glm::mat4 world = parent_transform* R2o * R1o * To * R2s * R1s * S;
+
 
 	if (show_basis)
 	{
 		bonobo::renderBasis(1.0f, 2.0f, view_projection, world);
 	}
-
+	
 	// Note: The second argument of `node::render()` is supposed to be the
 	// parent transform of the node, not the whole world matrix, as the
 	// node internally manages its local transforms. However in our case we
@@ -43,7 +55,9 @@ glm::mat4 CelestialBody::render(std::chrono::microseconds elapsed_time,
 	// world matrix.
 	_body.node.render(view_projection, world);
 
-	return parent_transform;
+	glm::mat4 children_transform = parent_transform*R2o * R1o * To;
+
+	return children_transform;
 }
 
 void CelestialBody::add_child(CelestialBody* child)

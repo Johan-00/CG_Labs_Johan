@@ -49,7 +49,13 @@ edaf80::Assignment3::run()
 
 	// Create the shader programs
 	ShaderProgramManager program_manager;
-	GLuint fallback_shader = 0u;
+
+
+
+
+
+
+GLuint fallback_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Fallback",
 	                                         { { ShaderType::vertex, "common/fallback.vert" },
 	                                           { ShaderType::fragment, "common/fallback.frag" } },
@@ -83,19 +89,40 @@ edaf80::Assignment3::run()
 	if (texcoord_shader == 0u)
 		LogError("Failed to load texcoord shader");
 
+	GLuint skybox_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Skybox",
+		{ { ShaderType::vertex, "EDAF80/skybox.vert" },
+			{ ShaderType::fragment, "EDAF80/skybox.frag" } },
+		skybox_shader);
+
+	if (skybox_shader == 0u)
+		LogError("Failed to load texcoord shader");
+
+
+	GLuint phong_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Phong",
+											{ { ShaderType::vertex, "EDAF80/phong.vert" },
+											   { ShaderType::fragment, "EDAF80/phong.frag" } },
+												phong_shader);
+
+	if (phong_shader == 0u) {
+		LogError("Failed to load phong shader");
+	}
+
+
 	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
 	auto const set_uniforms = [&light_position](GLuint program){
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 	};
 
-	bool use_normal_mapping = false;
+	bool use_normal_mapping = true;
 	auto camera_position = mCamera.mWorld.GetTranslation();
 	auto const phong_set_uniforms = [&use_normal_mapping,&light_position,&camera_position](GLuint program){
 		glUniform1i(glGetUniformLocation(program, "use_normal_mapping"), use_normal_mapping ? 1 : 0);
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
+	
 	};
-
 
 	//
 	// Set up the two spheres used.
@@ -108,7 +135,7 @@ edaf80::Assignment3::run()
 
 	Node skybox;
 	skybox.set_geometry(skybox_shape);
-	skybox.set_program(&fallback_shader, set_uniforms);
+	skybox.set_program(&skybox_shader, set_uniforms);
 
 	auto demo_shape = parametric_shapes::createSphere(1.5f, 40u, 40u);
 	if (demo_shape.vao == 0u) {
@@ -125,7 +152,40 @@ edaf80::Assignment3::run()
 	Node demo_sphere;
 	demo_sphere.set_geometry(demo_shape);
 	demo_sphere.set_material_constants(demo_material);
-	demo_sphere.set_program(&fallback_shader, phong_set_uniforms);
+	demo_sphere.set_program(&phong_shader, phong_set_uniforms);
+
+
+	// Load cube map and other textures
+	//std::string skyboxtexture = "LarnacaCastle";
+	//std::string skyboxtexture = "Maskonaive2";
+	std::string skyboxtexture = "NissiBeach2";
+	//std::string skyboxtexture = "Teide";
+	auto cube_map_id = bonobo::loadTextureCubeMap(
+		config::resources_path("cubemaps/"+skyboxtexture+"/posx.jpg"),
+		config::resources_path("cubemaps/"+skyboxtexture+"/negx.jpg"),
+		config::resources_path("cubemaps/"+skyboxtexture+"/posy.jpg"),
+		config::resources_path("cubemaps/"+skyboxtexture+"/negy.jpg"),
+		config::resources_path("cubemaps/"+skyboxtexture+"/posz.jpg"),
+		config::resources_path("cubemaps/"+skyboxtexture+"/negz.jpg"));
+
+	auto diffuse_texture_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_coll1_2k.jpg"));
+	auto specular_texture_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_rough_2k.jpg"));
+	auto normal_map_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_nor_2k.jpg"));
+
+	//add the textures
+	skybox.add_texture("cubemap", cube_map_id, GL_TEXTURE_CUBE_MAP);
+
+	demo_sphere.add_texture("diffuse_texture", diffuse_texture_id, GL_TEXTURE_2D);
+	demo_sphere.add_texture("specular_texture", specular_texture_id, GL_TEXTURE_2D);
+	demo_sphere.add_texture("normal_map", normal_map_id, GL_TEXTURE_2D);
+
+	//Bump Map
+	//auto my_bump_map_id = bonobo::loadTexture2D("earth_bump.png");
+	//circle_ring.add_texture("my_bump_map", my_bump_map_id, GL_TEXTURE_2D);
+
+
+
+
 
 
 	glClearDepthf(1.0f);
@@ -198,6 +258,7 @@ edaf80::Assignment3::run()
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 		bonobo::changePolygonMode(polygon_mode);
 
+		skybox.get_transform().SetTranslate(camera_position);
 
 		skybox.render(mCamera.GetWorldToClipMatrix());
 		demo_sphere.render(mCamera.GetWorldToClipMatrix());
@@ -212,10 +273,12 @@ edaf80::Assignment3::run()
 				changeCullMode(cull_mode);
 			}
 			bonobo::uiSelectPolygonMode("Polygon mode", polygon_mode);
+
 			auto demo_sphere_selection_result = program_manager.SelectProgram("Demo sphere", demo_sphere_program_index);
 			if (demo_sphere_selection_result.was_selection_changed) {
 				demo_sphere.set_program(demo_sphere_selection_result.program, phong_set_uniforms);
 			}
+
 			ImGui::Separator();
 			ImGui::Checkbox("Use normal mapping", &use_normal_mapping);
 			ImGui::ColorEdit3("Ambient", glm::value_ptr(demo_material.ambient));
