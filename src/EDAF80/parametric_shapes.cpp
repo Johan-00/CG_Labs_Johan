@@ -34,12 +34,6 @@ parametric_shapes::createQuad(float const width, float const height,
 		return data;
 	}
 
-	//
-	// NOTE:
-	//
-	// Only the values preceeded by a `\todo` tag should be changed, the
-	// other ones are correct!
-	//
 
 	// Create a Vertex Array Object: it will remember where we stored the
 	// data on the GPU, and  which part corresponds to the vertices, which
@@ -104,23 +98,25 @@ parametric_shapes::createQuad(float const width, float const height,
 		/* how far away (in bytes) from the start of the buffer is the first vertex? */
 		reinterpret_cast<GLvoid const*>(0x0));
 
-	// Now, let's allocate a second one for the indices.
-	//
-	// Have the buffer's name stored into `data.ibo`.
-	glGenBuffers(1, &data.ibo);
+	glBufferSubData(GL_ARRAY_BUFFER, texcoords_offset, texcoords_size, static_cast<GLvoid const*>(texcoords.data()));
+	glEnableVertexAttribArray(static_cast<unsigned int>(bonobo::shader_bindings::texcoords));
+	glVertexAttribPointer(static_cast<unsigned int>(bonobo::shader_bindings::texcoords), 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid const*>(texcoords_offset));
 
+	//glBufferSubData(GL_ARRAY_BUFFER, tangents_offset, tangents_size, static_cast<GLvoid const*>(tangents.data()));
+	//glEnableVertexAttribArray(static_cast<unsigned int>(bonobo::shader_bindings::tangents));
+	//glVertexAttribPointer(static_cast<unsigned int>(bonobo::shader_bindings::tangents), 3, GL_FLOAT, GL_FALSE, 0, reinterpret_cast<GLvoid const*>(tangents_offset));
 
 	// We still want a 1D-array, but this time it should be a 1D-array of
 	// elements, aka. indices!
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.ibo);
 
-	auto const indices_size = static_cast<GLsizeiptr>(index_sets.size() * sizeof(glm::vec3));
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, /*! \todo how many bytes should the buffer contain? */indices_size,
-		/* where is the data stored on the CPU? */index_sets.data(),
-		/* inform OpenGL that the data is modified once, but used often */GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0u);
 
-	// Number of data points for indices! 3 per triangle
-	data.indices_nb = index_sets.size() * 3u;
+	data.indices_nb = static_cast<GLsizei>(indices.size() * 3u);
+	glGenBuffers(1, &data.ibo);
+	assert(data.ibo != 0u);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(indices.size() * sizeof(glm::uvec3)), reinterpret_cast<GLvoid const*>(indices.data()), GL_STATIC_DRAW);
 
 	// All the data has been recorded, we can unbind them.
 	glBindVertexArray(0u);
