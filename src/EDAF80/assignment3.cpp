@@ -50,11 +50,6 @@ edaf80::Assignment3::run()
 	// Create the shader programs
 	ShaderProgramManager program_manager;
 
-
-
-
-
-
 GLuint fallback_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Fallback",
 	                                         { { ShaderType::vertex, "common/fallback.vert" },
@@ -178,13 +173,6 @@ GLuint fallback_shader = 0u;
 	demo_sphere.add_texture("diffuse_texture", diffuse_texture_id, GL_TEXTURE_2D);
 	demo_sphere.add_texture("specular_texture", specular_texture_id, GL_TEXTURE_2D);
 	demo_sphere.add_texture("normal_map", normal_map_id, GL_TEXTURE_2D);
-
-	//Bump Map
-	//auto my_bump_map_id = bonobo::loadTexture2D("earth_bump.png");
-	//circle_ring.add_texture("my_bump_map", my_bump_map_id, GL_TEXTURE_2D);
-
-
-
 
 
 
