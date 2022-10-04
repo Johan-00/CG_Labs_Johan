@@ -45,7 +45,17 @@ edaf80::Assignment4::run()
 	mCamera.mMouseSensitivity = glm::vec2(0.003f);
 	mCamera.mMovementSpeed = glm::vec3(3.0f); // 3 m/s => 10.8 km/h
 
+	glm::vec3 deep_color = glm::vec3(0.0f, 0.0f, 0.1f);
+	glm::vec3 shallow_color = glm::vec3(0.0f, 0.5f, 0.5f);
+
+	float amplitudes[2] = { 1.0, 0.5 };
+	float frequencies[2] = { 0.2, 0.4 };
+	float phases[2] = { 0.5, 1.3 };
+	float sharpness[2] = { 2.0, 2.0 };
+	glm::vec2 directions[2] = { glm::vec2(-1.0,0.0),glm::vec2(-0.7,0.7) };
+
 	float elapsed_time_s = 0.0f;
+
 	// Create the shader programs
 	ShaderProgramManager program_manager;
 
@@ -126,10 +136,17 @@ edaf80::Assignment4::run()
 
 
 	auto camera_position = mCamera.mWorld.GetTranslation();
-	auto const water_set_uniforms = [&light_position, &camera_position, &elapsed_time_s](GLuint program) {
-		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
-		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
+	auto const water_set_uniforms = [&amplitudes, &frequencies, &sharpness, &phases, &directions,
+		&elapsed_time_s, &deep_color, &shallow_color, &camera_position](GLuint program) {
+		glUniform1fv(glGetUniformLocation(program, "amplitudes"), 2, amplitudes);
+		glUniform1fv(glGetUniformLocation(program, "frequencies"), 2, frequencies);
+		glUniform1fv(glGetUniformLocation(program, "sharpness"), 2, sharpness);
+		glUniform1fv(glGetUniformLocation(program, "phases"), 2, phases);
+		glUniform2fv(glGetUniformLocation(program, "directions"), 2, glm::value_ptr(directions[0]));
 		glUniform1f(glGetUniformLocation(program, "elapsed_time_s"), elapsed_time_s);
+		glUniform3fv(glGetUniformLocation(program, "deep_color"), 1, glm::value_ptr(deep_color));
+		glUniform3fv(glGetUniformLocation(program, "shallow_color"), 1, glm::value_ptr(shallow_color));
+		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
 	};
 
 	//
@@ -141,9 +158,8 @@ edaf80::Assignment4::run()
 
 	Node water;
 	water.set_geometry(water_shape);
+	water.get_transform().SetTranslate(glm::vec3(-50.0f, -5.0f, -50.0f));
 	water.set_program(&water_shader, water_set_uniforms);
-
-
 
 	// Load cube map and other textures
 	std::string skyboxtexture = "NissiBeach2";
@@ -252,9 +268,6 @@ edaf80::Assignment4::run()
 
 
 		if (!shader_reload_failed) {
-			//skybox.get_transform().SetTranslate(camera_position);
-			water.get_transform().SetTranslate(glm::vec3(-50.0f, -5.0f, -50.0f));
-
 			skybox.render(mCamera.GetWorldToClipMatrix());
 			water.render(mCamera.GetWorldToClipMatrix());
 		}
@@ -278,14 +291,23 @@ edaf80::Assignment4::run()
 				changeCullMode(cull_mode);
 			}
 			bonobo::uiSelectPolygonMode("Polygon mode", polygon_mode);
-			auto demo_sphere_selection_result = program_manager.SelectProgram("Demo sphere", demo_sphere_program_index);
-			if (demo_sphere_selection_result.was_selection_changed) {
-				water.set_program(demo_sphere_selection_result.program, water_set_uniforms);
-			}
+			
 			ImGui::Separator();
 			ImGui::Checkbox("Show basis", &show_basis);
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
+			ImGui::Separator();
+			ImGui::ColorEdit3("Deep", glm::value_ptr(deep_color));
+			ImGui::ColorEdit3("Shallow", glm::value_ptr(shallow_color));
+			ImGui::Separator();
+			float* p = amplitudes;
+			for (size_t i = 0; i < 2; ++i) {
+				ImGui::SliderFloat((std::string("Amplitude ") + std::to_string(i + 1)).c_str(), &amplitudes[i], 0.0f, 10.0f);
+				ImGui::SliderFloat((std::string("Frequency ") + std::to_string(i + 1)).c_str(), &frequencies[i], 0.0f, 10.0f);
+				ImGui::SliderFloat((std::string("Phase ") + std::to_string(i + 1)).c_str(), &phases[i], 0.0f, 10.0f);
+				ImGui::SliderFloat((std::string("Sharpness ") + std::to_string(i + 1)).c_str(), &sharpness[i], 0.0f, 10.0f);
+				ImGui::SliderFloat2((std::string("Direction ") + std::to_string(i + 1)).c_str(), glm::value_ptr(directions[i]), -1.0, 1.0);
+			}
 		}
 		ImGui::End();
 
