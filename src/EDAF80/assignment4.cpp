@@ -93,13 +93,13 @@ edaf80::Assignment4::run()
 		LogError("Failed to load texcoord shader");
 
 
-	GLuint phong_shader = 0u;
-	program_manager.CreateAndRegisterProgram("Phong",
-		{ { ShaderType::vertex, "EDAF80/phong.vert" },
-		   { ShaderType::fragment, "EDAF80/phong.frag" } },
-		phong_shader);
+	GLuint water_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Water",
+		{ { ShaderType::vertex, "EDAF80/water.vert" },
+		   { ShaderType::fragment, "EDAF80/water.frag" } },
+		water_shader);
 
-	if (phong_shader == 0u) {
+	if (water_shader == 0u) {
 		LogError("Failed to load phong shader");
 	}
 
@@ -109,14 +109,6 @@ edaf80::Assignment4::run()
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 	};
 
-	bool use_normal_mapping = true;
-	auto camera_position = mCamera.mWorld.GetTranslation();
-	auto const phong_set_uniforms = [&use_normal_mapping, &light_position, &camera_position](GLuint program) {
-		glUniform1i(glGetUniformLocation(program, "use_normal_mapping"), use_normal_mapping ? 1 : 0);
-		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
-		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
-
-	};
 
 	//
 	// Set up shapes.
@@ -133,6 +125,13 @@ edaf80::Assignment4::run()
 	}
 
 
+	auto camera_position = mCamera.mWorld.GetTranslation();
+	auto const water_set_uniforms = [&light_position, &camera_position, &elapsed_time_s](GLuint program) {
+		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
+		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
+		glUniform1f(glGetUniformLocation(program, "elapsed_time_s"), elapsed_time_s);
+	};
+
 	//
 	// Set up nodes.
 	//
@@ -142,7 +141,7 @@ edaf80::Assignment4::run()
 
 	Node water;
 	water.set_geometry(water_shape);
-	water.set_program(&fallback_shader, set_uniforms);
+	water.set_program(&water_shader, water_set_uniforms);
 
 
 
@@ -156,140 +155,161 @@ edaf80::Assignment4::run()
 		config::resources_path("cubemaps/" + skyboxtexture + "/posz.jpg"),
 		config::resources_path("cubemaps/" + skyboxtexture + "/negz.jpg"));
 
+	auto water_texture_id = bonobo::loadTexture2D(config::resources_path("textures/waves.png"));
 
 	//add the textures
 	skybox.add_texture("cubemap", cube_map_id, GL_TEXTURE_CUBE_MAP);
+	water.add_texture("my_reflection_cube", cube_map_id, GL_TEXTURE_CUBE_MAP);
+	water.add_texture("my_ripple", water_texture_id, GL_TEXTURE_2D);
 
-		glClearDepthf(1.0f);
-		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-		glEnable(GL_DEPTH_TEST);
-
-
-		auto lastTime = std::chrono::high_resolution_clock::now();
-
-		bool pause_animation = true;
-		bool use_orbit_camera = false;
-		auto cull_mode = bonobo::cull_mode_t::disabled;
-		auto polygon_mode = bonobo::polygon_mode_t::fill;
-		bool show_logs = true;
-		bool show_gui = true;
-		bool shader_reload_failed = false;
-		bool show_basis = false;
-		float basis_thickness_scale = 1.0f;
-		float basis_length_scale = 1.0f;
-
-		changeCullMode(cull_mode);
-
-		while (!glfwWindowShouldClose(window)) {
-			auto const nowTime = std::chrono::high_resolution_clock::now();
-			auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
-			lastTime = nowTime;
-			if (!pause_animation) {
-				elapsed_time_s += std::chrono::duration<float>(deltaTimeUs).count();
-			}
-
-			auto& io = ImGui::GetIO();
-			inputHandler.SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
-
-			glfwPollEvents();
-			inputHandler.Advance();
-			mCamera.Update(deltaTimeUs, inputHandler);
-			if (use_orbit_camera) {
-				mCamera.mWorld.LookAt(glm::vec3(0.0f));
-			}
-			camera_position = mCamera.mWorld.GetTranslation();
-
-			if (inputHandler.GetKeycodeState(GLFW_KEY_R) & JUST_PRESSED) {
-				shader_reload_failed = !program_manager.ReloadAllPrograms();
-				if (shader_reload_failed)
-					tinyfd_notifyPopup("Shader Program Reload Error",
-						"An error occurred while reloading shader programs; see the logs for details.\n"
-						"Rendering is suspended until the issue is solved. Once fixed, just reload the shaders again.",
-						"error");
-			}
-			if (inputHandler.GetKeycodeState(GLFW_KEY_F3) & JUST_RELEASED)
-				show_logs = !show_logs;
-			if (inputHandler.GetKeycodeState(GLFW_KEY_F2) & JUST_RELEASED)
-				show_gui = !show_gui;
-			if (inputHandler.GetKeycodeState(GLFW_KEY_F11) & JUST_RELEASED)
-				mWindowManager.ToggleFullscreenStatusForWindow(window);
+	glClearDepthf(1.0f);
+	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glEnable(GL_DEPTH_TEST);
 
 
-			// Retrieve the actual framebuffer size: for HiDPI monitors,
-			// you might end up with a framebuffer larger than what you
-			// actually asked for. For example, if you ask for a 1920x1080
-			// framebuffer, you might get a 3840x2160 one instead.
-			// Also it might change as the user drags the window between
-			// monitors with different DPIs, or if the fullscreen status is
-			// being toggled.
-			int framebuffer_width, framebuffer_height;
-			glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
-			glViewport(0, 0, framebuffer_width, framebuffer_height);
+	auto lastTime = std::chrono::high_resolution_clock::now();
 
-			//
-			// Todo: If you need to handle inputs, you can do it here
-			//
+	bool pause_animation = false;
+	bool use_orbit_camera = false;
+	std::int32_t demo_sphere_program_index = 0;
+	auto cull_mode = bonobo::cull_mode_t::disabled;
+	auto polygon_mode = bonobo::polygon_mode_t::fill;
+	bool show_logs = true;
+	bool show_gui = true;
+	bool shader_reload_failed = false;
+	bool show_basis = false;
+	float basis_thickness_scale = 1.0f;
+	float basis_length_scale = 1.0f;
 
+	changeCullMode(cull_mode);
 
-			mWindowManager.NewImGuiFrame();
-
-			glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-			bonobo::changePolygonMode(polygon_mode);
-
-
-			if (!shader_reload_failed) {
-				skybox.get_transform().SetTranslate(camera_position);
-				skybox.render(mCamera.GetWorldToClipMatrix());
-				water.render(mCamera.GetWorldToClipMatrix());
-			}
-
-
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-			//
-			// Todo: If you want a custom ImGUI window, you can set it up
-			//       here
-			//
-
-
-			bool opened = ImGui::Begin("Scene Control", nullptr, ImGuiWindowFlags_None);
-			if (opened) {
-				ImGui::Checkbox("Pause animation", &pause_animation);
-				ImGui::Checkbox("Use orbit camera", &use_orbit_camera);
-				ImGui::Separator();
-				auto const cull_mode_changed = bonobo::uiSelectCullMode("Cull mode", cull_mode);
-				if (cull_mode_changed) {
-					changeCullMode(cull_mode);
-				}
-				bonobo::uiSelectPolygonMode("Polygon mode", polygon_mode);
-				ImGui::Separator();
-				ImGui::Checkbox("Show basis", &show_basis);
-				ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
-				ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
-			}
-			ImGui::End();
-
-			if (show_basis)
-				bonobo::renderBasis(basis_thickness_scale, basis_length_scale, mCamera.GetWorldToClipMatrix());
-			if (show_logs)
-				Log::View::Render();
-			mWindowManager.RenderImGuiFrame(show_gui);
-
-			glfwSwapBuffers(window);
+	while (!glfwWindowShouldClose(window)) {
+		auto const nowTime = std::chrono::high_resolution_clock::now();
+		auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
+		lastTime = nowTime;
+		if (!pause_animation) {
+			elapsed_time_s += std::chrono::duration<float>(deltaTimeUs).count();
 		}
+
+		auto& io = ImGui::GetIO();
+		inputHandler.SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
+
+		glfwPollEvents();
+		inputHandler.Advance();
+		mCamera.Update(deltaTimeUs, inputHandler);
+		if (use_orbit_camera) {
+			mCamera.mWorld.LookAt(glm::vec3(0.0f));
+		}
+		camera_position = mCamera.mWorld.GetTranslation();
+
+		if (inputHandler.GetKeycodeState(GLFW_KEY_R) & JUST_PRESSED) {
+			shader_reload_failed = !program_manager.ReloadAllPrograms();
+			if (shader_reload_failed)
+				tinyfd_notifyPopup("Shader Program Reload Error",
+					"An error occurred while reloading shader programs; see the logs for details.\n"
+					"Rendering is suspended until the issue is solved. Once fixed, just reload the shaders again.",
+					"error");
+		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_F3) & JUST_RELEASED)
+			show_logs = !show_logs;
+		if (inputHandler.GetKeycodeState(GLFW_KEY_F2) & JUST_RELEASED)
+			show_gui = !show_gui;
+		if (inputHandler.GetKeycodeState(GLFW_KEY_F11) & JUST_RELEASED)
+			mWindowManager.ToggleFullscreenStatusForWindow(window);
+		if (inputHandler.GetKeycodeState(GLFW_KEY_1) & JUST_PRESSED) {
+			water.set_program(&fallback_shader, set_uniforms);
+		}
+		/*if (inputHandler.GetKeycodeState(GLFW_KEY_2) & JUST_PRESSED) {
+			quad.set_program(&default_shader, set_uniforms);
+		}
+		if (inputHandler.GetKeycodeState(GLFW_KEY_3) & JUST_PRESSED) {
+			quad.set_program(&diffuse_shader, set_uniforms);
+		}*/
+		if (inputHandler.GetKeycodeState(GLFW_KEY_5) & JUST_PRESSED) {
+			water.set_program(&water_shader, water_set_uniforms);
+		}
+		// Retrieve the actual framebuffer size: for HiDPI monitors,
+		// you might end up with a framebuffer larger than what you
+		// actually asked for. For example, if you ask for a 1920x1080
+		// framebuffer, you might get a 3840x2160 one instead.
+		// Also it might change as the user drags the window between
+		// monitors with different DPIs, or if the fullscreen status is
+		// being toggled.
+		int framebuffer_width, framebuffer_height;
+		glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+		glViewport(0, 0, framebuffer_width, framebuffer_height);
+
+		//
+		// Todo: If you need to handle inputs, you can do it here
+		//
+
+
+		mWindowManager.NewImGuiFrame();
+
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+		bonobo::changePolygonMode(polygon_mode);
+
+
+
+		if (!shader_reload_failed) {
+			//skybox.get_transform().SetTranslate(camera_position);
+			water.get_transform().SetTranslate(glm::vec3(-50.0f, -5.0f, -50.0f));
+
+			skybox.render(mCamera.GetWorldToClipMatrix());
+			water.render(mCamera.GetWorldToClipMatrix());
+		}
+
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+		//
+		// Todo: If you want a custom ImGUI window, you can set it up
+		//       here
+		//
+
+
+		bool opened = ImGui::Begin("Scene Control", nullptr, ImGuiWindowFlags_None);
+		if (opened) {
+			ImGui::Checkbox("Pause animation", &pause_animation);
+			ImGui::Checkbox("Use orbit camera", &use_orbit_camera);
+			ImGui::Separator();
+			auto const cull_mode_changed = bonobo::uiSelectCullMode("Cull mode", cull_mode);
+			if (cull_mode_changed) {
+				changeCullMode(cull_mode);
+			}
+			bonobo::uiSelectPolygonMode("Polygon mode", polygon_mode);
+			auto demo_sphere_selection_result = program_manager.SelectProgram("Demo sphere", demo_sphere_program_index);
+			if (demo_sphere_selection_result.was_selection_changed) {
+				water.set_program(demo_sphere_selection_result.program, water_set_uniforms);
+			}
+			ImGui::Separator();
+			ImGui::Checkbox("Show basis", &show_basis);
+			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
+			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
+		}
+		ImGui::End();
+
+		if (show_basis)
+			bonobo::renderBasis(basis_thickness_scale, basis_length_scale, mCamera.GetWorldToClipMatrix());
+		if (show_logs)
+			Log::View::Render();
+		mWindowManager.RenderImGuiFrame(show_gui);
+
+		glfwSwapBuffers(window);
 	}
+}
 
-		int main()
-	{
-		std::setlocale(LC_ALL, "");
+int main()
+{
+	std::setlocale(LC_ALL, "");
 
-		Bonobo framework;
+	Bonobo framework;
 
-		try {
-			edaf80::Assignment4 assignment4(framework.GetWindowManager());
-			assignment4.run();
-		}
-		catch (std::runtime_error const& e) {
-			LogError(e.what());
-		}
+	try {
+		edaf80::Assignment4 assignment4(framework.GetWindowManager());
+		assignment4.run();
 	}
+	catch (std::runtime_error const& e) {
+		LogError(e.what());
+	}
+}
