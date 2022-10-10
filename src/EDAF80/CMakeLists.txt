@@ -14,6 +14,14 @@ target_sources (
 )
 target_link_libraries (parametric_shapes PRIVATE bonobo CG_Labs_options)
 
+add_library (plane STATIC)
+target_sources (
+       plane
+       PUBLIC [[plane.hpp]]
+       PRIVATE [[plane.cpp]]
+)
+target_link_libraries (plane PRIVATE bonobo CG_Labs_options)
+
 
 # Assignment 1
 add_executable (EDAF80_Assignment1)
@@ -26,7 +34,7 @@ target_sources (
 )
 target_link_libraries (
 	EDAF80_Assignment1
-	PRIVATE assignment_setup parametric_shapes
+	PRIVATE assignment_setup parametric_shapes plane
 )
 copy_dlls (EDAF80_Assignment1 "${CMAKE_CURRENT_BINARY_DIR}")
 
@@ -84,7 +92,9 @@ target_sources (
 		[[assignment5.hpp]]
 		[[assignment5.cpp]]
 )
-target_link_libraries (EDAF80_Assignment5 PRIVATE assignment_setup)
+target_link_libraries (EDAF80_Assignment5
+PRIVATE assignment_setup parametric_shapes plane
+)
 copy_dlls (EDAF80_Assignment5 "${CMAKE_CURRENT_BINARY_DIR}")
 
 

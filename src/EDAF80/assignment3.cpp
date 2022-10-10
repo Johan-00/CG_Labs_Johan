@@ -96,8 +96,8 @@ GLuint fallback_shader = 0u;
 
 	GLuint phong_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Phong",
-											{ { ShaderType::vertex, "EDAF80/phong.vert" },
-											   { ShaderType::fragment, "EDAF80/phong.frag" } },
+											{ { ShaderType::vertex, "EDAF80/phong_texture.vert" },
+											   { ShaderType::fragment, "EDAF80/phong_texture.frag" } },
 												phong_shader);
 
 	if (phong_shader == 0u) {
@@ -111,12 +111,14 @@ GLuint fallback_shader = 0u;
 	};
 
 	bool use_normal_mapping = true;
+	bool use_texture = true;
 	auto camera_position = mCamera.mWorld.GetTranslation();
-	auto const phong_set_uniforms = [&use_normal_mapping,&light_position,&camera_position](GLuint program){
+	auto const phong_set_uniforms = [&use_normal_mapping, &use_texture, &light_position, &camera_position](GLuint program) {
+		glUniform1i(glGetUniformLocation(program, "use_texture"), use_texture ? 1 : 0);
 		glUniform1i(glGetUniformLocation(program, "use_normal_mapping"), use_normal_mapping ? 1 : 0);
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
-	
+
 	};
 
 	//
