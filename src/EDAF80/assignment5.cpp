@@ -9,6 +9,8 @@
 #include "core/node.hpp"
 #include "core/ShaderProgramManager.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+
 
 #include <imgui.h>
 #include <tinyfiledialogs.h>
@@ -19,11 +21,11 @@
 
 edaf80::Assignment5::Assignment5(WindowManager& windowManager) :
 	mCamera(0.5f * glm::half_pi<float>(),
-	        static_cast<float>(config::resolution_x) / static_cast<float>(config::resolution_y),
-	        0.01f, 1000.0f),
+		static_cast<float>(config::resolution_x) / static_cast<float>(config::resolution_y),
+		0.01f, 1000.0f),
 	inputHandler(), mWindowManager(windowManager), window(nullptr)
 {
-	WindowManager::WindowDatum window_datum{ inputHandler, mCamera, config::resolution_x, config::resolution_y, 0, 0, 0, 0};
+	WindowManager::WindowDatum window_datum{ inputHandler, mCamera, config::resolution_x, config::resolution_y, 0, 0, 0, 0 };
 
 	window = mWindowManager.CreateGLFWWindow("EDAF80: Assignment 5", window_datum, config::msaa_rate);
 	if (window == nullptr) {
@@ -38,6 +40,13 @@ edaf80::Assignment5::~Assignment5()
 	bonobo::deinit();
 }
 
+bool testCollison(glm::vec3 p1, float r1, glm::vec3 p2, float r2)
+{
+	auto p = p1 - p2;
+	float psum = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+	return psum < r1 + r2;
+}
+
 void
 edaf80::Assignment5::run()
 {
@@ -48,7 +57,7 @@ edaf80::Assignment5::run()
 	mCamera.mMovementSpeed = glm::vec3(3.0f); // 3 m/s => 10.8 km/h
 
 	Plane planecontrol(glm::vec3(0.0f, 0.0f, 20.0f));
-	planecontrol.yaw(glm::pi<float>()/2.0f);
+	planecontrol.yaw(glm::pi<float>() / 2.0f);
 
 	glm::vec3 deep_color = glm::vec3(0.0f, 0.0f, 0.1f);
 	glm::vec3 shallow_color = glm::vec3(0.0f, 0.294f, 0.516f);
@@ -145,7 +154,7 @@ edaf80::Assignment5::run()
 	if (phong_texture_shader == 0u) {
 		LogError("Failed to load phong shader");
 	}
-	
+
 
 	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
 	auto const set_uniforms = [&light_position](GLuint program) {
@@ -207,6 +216,12 @@ edaf80::Assignment5::run()
 	Torus_material.specular = glm::vec3(1.0f, 1.0f, 1.0f);
 	Torus_material.shininess = 12.0f;
 
+	bonobo::material_data Torus_material_hit;
+	Torus_material_hit.ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+	Torus_material_hit.diffuse = glm::vec3(1.0f, 0.0f, 0.0f);
+	Torus_material_hit.specular = glm::vec3(1.0f, 1.0f, 1.0f);
+	Torus_material_hit.shininess = 12.0f;
+
 	//
 	// Set up nodes.
 	//
@@ -216,8 +231,8 @@ edaf80::Assignment5::run()
 	plane.get_transform().SetScale(0.01f);
 	plane.get_transform().SetTranslate(shipPos);
 	plane.set_program(&defult_shader, set_uniforms);
-	
-	
+
+
 	Node skybox;
 	skybox.set_geometry(skybox_shape);
 	skybox.get_transform().SetTranslate(glm::vec3(0.0f, -10.0f, 0.0f));
@@ -233,7 +248,7 @@ edaf80::Assignment5::run()
 		0,
 		glm::pi<float>() / (static_cast<float>(4)),
 		glm::pi<float>() / (static_cast<float>(2)),
-		(3.0f*glm::pi<float>()) / (static_cast<float>(4)),
+		(3.0f * glm::pi<float>()) / (static_cast<float>(4)),
 		glm::pi<float>(),
 		(5.0f * glm::pi<float>()) / (static_cast<float>(4)),
 		(3.0f * glm::pi<float>()) / (static_cast<float>(2)),
@@ -254,15 +269,18 @@ edaf80::Assignment5::run()
 	unsigned int num_points = control_point_locations.size();
 
 	std::array<Node, control_point_locations.size()> control_points;
+	std::array<bool, control_point_locations.size()> control_points_hit;
+
 	for (std::size_t i = 0; i < control_point_locations.size(); ++i) {
 		auto& control_point = control_points[i];
+		control_points_hit[i] = false;
 		control_point.get_transform().RotateY(-angle[i]);
 		control_point.set_geometry(control_point_shape);
 		control_point.set_material_constants(Torus_material);
 		control_point.set_program(&phong_shader, phong_set_uniforms);
 		control_point.get_transform().SetTranslate(control_point_locations[i]);
 	}
-	
+
 
 	// Load cube map and other textures
 	std::string skyboxtexture = "NissiBeach2";
@@ -290,8 +308,8 @@ edaf80::Assignment5::run()
 	glClearDepthf(1.0f);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
-	
-	
+
+
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
@@ -322,14 +340,14 @@ edaf80::Assignment5::run()
 		if (!pause_animation) {
 			elapsed_time_s += std::chrono::duration<float>(deltaTimeUs).count();
 		}
-	
+
 
 		auto& io = ImGui::GetIO();
 		inputHandler.SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
 
 		glfwPollEvents();
 		inputHandler.Advance();
-		mCamera.Update(deltaTimeUs, inputHandler,true,true);
+		mCamera.Update(deltaTimeUs, inputHandler, true, true);
 		if (use_orbit_camera) {
 			mCamera.mWorld.LookAt(glm::vec3(0.0f));
 		}
@@ -377,7 +395,7 @@ edaf80::Assignment5::run()
 		//
 		// Todo: If you need to handle inputs, you can do it here
 		//
-	
+
 		if (inputHandler.GetKeycodeState(GLFW_KEY_W) & PRESSED) {
 			planecontrol.pitch(-0.005);
 		}
@@ -396,20 +414,40 @@ edaf80::Assignment5::run()
 		if (inputHandler.GetKeycodeState(GLFW_KEY_E) & PRESSED) {
 			planecontrol.yaw(-0.005);
 		}
-		
+
 		planecontrol.fly(std::chrono::duration<float>(deltaTimeUs).count());
 		//plane.get_transform().PreRotateY(glm::pi<float>());
 		plane.get_transform().LookTowards(planecontrol.getDirection(), planecontrol.getVertical());
 		plane.get_transform().PreRotateY(glm::pi<float>());
 		plane.get_transform().SetTranslate(planecontrol.getPosition());
-		
 
-		
+
+
 		shipPos = plane.get_transform().GetTranslation();
-		// std::cout << shipPos << std::endl;
 
-		//mCamera.mWorld.LookTowards(planecontrol.getDirection(), planecontrol.getVertical());
-		mCamera.mWorld.SetTranslate(plane.get_transform().GetTranslation() - 4.0f*planecontrol.getDirection()+ 0.5f*planecontrol.getVertical());
+		//colition detection
+		for (std::size_t i = 0; i < control_point_locations.size(); ++i) {
+			if (!control_points_hit[i] && testCollison(shipPos, 0.4f, control_point_locations[i], 0.4f)) {
+				control_points_hit[i] = true;
+				control_points[i].set_material_constants(Torus_material_hit);
+			}
+		}
+		if (std::all_of(
+			std::begin(control_points_hit),
+			std::end(control_points_hit),
+			[](bool i)
+			{
+				return i; // or return !i ;
+			}
+		)) {
+			pause_animation = true;
+			std::cout << "All rings are hit\n";
+			std::cout << "time: " << elapsed_time_s << std::endl;
+		}
+
+
+
+		mCamera.mWorld.SetTranslate(plane.get_transform().GetTranslation() - 4.0f * planecontrol.getDirection() + 0.5f * planecontrol.getVertical());
 		mCamera.mWorld.LookAt(plane.get_transform().GetTranslation(), planecontrol.getVertical());
 
 		mWindowManager.NewImGuiFrame();
@@ -420,11 +458,12 @@ edaf80::Assignment5::run()
 
 
 		if (!shader_reload_failed) {
-			
+
 			skybox.render(mCamera.GetWorldToClipMatrix());
 			water.render(mCamera.GetWorldToClipMatrix());
 			plane.render(mCamera.GetWorldToClipMatrix());
-			for (auto const& control_point : control_points) {
+			for (std::size_t i = 0; i < control_point_locations.size(); ++i) {
+				auto& control_point = control_points[i];
 				control_point.render(mCamera.GetWorldToClipMatrix());
 			}
 		}
@@ -481,6 +520,7 @@ edaf80::Assignment5::run()
 	}
 }
 
+
 int main()
 {
 	std::setlocale(LC_ALL, "");
@@ -490,7 +530,8 @@ int main()
 	try {
 		edaf80::Assignment5 assignment5(framework.GetWindowManager());
 		assignment5.run();
-	} catch (std::runtime_error const& e) {
+	}
+	catch (std::runtime_error const& e) {
 		LogError(e.what());
 	}
 }
