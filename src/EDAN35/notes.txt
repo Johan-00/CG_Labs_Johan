@@ -1,0 +1,16 @@
+
+1.4 Rendering the geometry buffer
+
+Which artefacts can you see? Why is it happening and how
+could you fix it?
+somthing does not get probarly cleared glClear(GL_COLOR_BUFFER_BIT); adeded to the render function pas 1
+
+1.5 Adding light sources and shading
+ what happens as the spotlight rotates
+ no clearing so it gets filed out
+
+ 
+2.1 Rendering the shadow map
+ What is possibly happening, and how
+can you fix it
+it is not proparly cleard so it gets filled out
