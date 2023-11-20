@@ -1,4 +1,4 @@
-﻿#version 410
+#version 410
 
 layout (location = 0) in vec3 vertex;
 layout (location = 2) in vec3 texcoords;
@@ -62,4 +62,3 @@ void main()
     
     gl_Position = vertex_world_to_clip * vertex_model_to_world * vec4(displaced_vertex, 1.0); 
 }
-

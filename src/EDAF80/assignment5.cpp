@@ -178,7 +178,7 @@ edaf80::Assignment5::run()
 
 	auto const control_point_shape = parametric_shapes::createTorus(0.8f, 0.05f, 100u, 100u);
 
-	std::vector<bonobo::mesh_data> const objects = bonobo::loadObjects(config::resources_path("scenes/airplane.obj"));
+	std::vector<bonobo::mesh_data> const objects = bonobo::loadObjects(config::resources_path("scenes/sphere.obj"));
 	if (objects.empty()) {
 		LogError("Failed to load the sphere geometry: exiting.");
 

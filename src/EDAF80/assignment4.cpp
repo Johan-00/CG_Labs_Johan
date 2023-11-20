@@ -110,7 +110,7 @@ edaf80::Assignment4::run()
 		water_shader);
 
 	if (water_shader == 0u) {
-		LogError("Failed to load phong shader");
+		LogError("Failed to load water shader");
 	}
 
 
