@@ -1,5 +1,7 @@
 #version 410
 
+
+
 struct ViewProjTransforms
 {
 	mat4 view_projection;
@@ -43,6 +45,27 @@ void main()
 	vec4 pos = camera.view_projection_inverse * (2.0 * vec4(texcoord.xy, depth, 1.0f) - 1.0f);
 	pos = pos / pos.w;
 
+	vec2 shadowmap_texel_size = 1.0f / textureSize(shadow_texture, 0);
+
+	vec4 shadow_pos = lights[light_index].view_projection * pos;
+	shadow_pos = shadow_pos / shadow_pos.w;
+	shadow_pos.xyz = shadow_pos.xyz * 0.5f+0.5f;
+
+	 float shadow = 0.0f;
+	 float bias = 0.00015f;
+	 int kernel_r = 2;
+	 for(int x = -kernel_r; x <= kernel_r; x++) {
+	   for(int y = -kernel_r; y <= kernel_r; y++) {
+	     float shadow_depth = texture(shadow_texture, shadow_pos.xy+vec2(x,y)*shadowmap_texel_size).r;
+	     if(shadow_pos.z - bias > shadow_depth)
+	     {
+	       shadow += 1.0f;
+	     }
+	   }
+	 }
+  shadow /= ((kernel_r*2+1.0f)*(kernel_r*2+1.0f));
+  shadow = (1-shadow);
+
 	
 	vec3 L = normalize(light_position - pos.xyz);
 	vec3 N = (2.0 * texture(normal_texture, texcoord).xyz) - 1.0f;
@@ -50,9 +73,10 @@ void main()
 
 	// Falloff and compositio
 	float r = distance(pos.xyz, light_position);
+
 	r = clamp(light_intensity * (1 / (1 + (r * r))) * smoothstep(cos(light_angle_falloff), 1.0, dot(-L, light_direction)),0,1);
 
 	// final color
-	light_diffuse_contribution  = vec4(r * light_color * max(0.0, dot(N, L)),1.0f); 
-	light_specular_contribution = vec4(r * light_color * pow(max(0.0, dot(reflect(-L, N), V)), 100),1.0f);
+	light_diffuse_contribution  = vec4(shadow*r * light_color * max(0.0, dot(N, L)),1.0f); 
+	light_specular_contribution = vec4(shadow*r * light_color * pow(max(0.0, dot(reflect(-L, N), V)), 100),1.0f);
 }

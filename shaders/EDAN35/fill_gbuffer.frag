@@ -40,16 +40,19 @@ void main()
 	// Worldspace normal
 	geometry_normal.xyz = vec3(0.0);
 	vec3 normal = vec3(0.0);
+
 	if (has_normals_texture)
 	{
-		vec3 N = normalize(fs_in.normal);
-		vec3 B = normalize(fs_in.binormal);
-		vec3 T = normalize(fs_in.tangent);
+		vec3 T = normalize(vec3(normal_model_to_world * vec4(fs_in.tangent, 0.0)));
+		vec3 B = normalize(vec3(normal_model_to_world * vec4(fs_in.binormal, 0.0)));
+		vec3 N = normalize(vec3(normal_model_to_world * vec4(fs_in.normal, 0.0)));
 		mat3 TBN = mat3(T, B, N);
 		vec3 bump = texture(normals_texture, fs_in.texcoord).xyz * 2.0f - 1.0f;
-		normal = normalize(normal_model_to_world* vec4(TBN * bump,1.0)).xyz;
+		normal = normalize(TBN * bump);
 	  }
-	 else normal = normalize(fs_in.normal);
-	 
+	 else {
+		normal = normalize(fs_in.normal);
+
+	 }
 	 geometry_normal.xyz = normal * 0.5f + 0.5f;
 }
