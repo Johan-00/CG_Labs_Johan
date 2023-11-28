@@ -18,6 +18,44 @@
 #include <cstdlib>
 #include <stdexcept>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+
+
+static GLuint quad_vao = 0;
+static GLuint quad_vbo = 0;
+
+
+
+
+void render_quad()
+{
+	if (quad_vao == 0) {
+		GLfloat quadVertices[] = {
+			// Positions        // Texture Coords
+			-1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+			1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		};
+		glGenVertexArrays(1, &quad_vao);
+		glGenBuffers(1, &quad_vbo);
+		glBindVertexArray(quad_vao);
+		glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	}
+	glBindVertexArray(quad_vao);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glBindVertexArray(0);
+}
+
 edaf80::Assignment3::Assignment3(WindowManager& windowManager) :
 	mCamera(0.5f * glm::half_pi<float>(),
 	        static_cast<float>(config::resolution_x) / static_cast<float>(config::resolution_y),
@@ -39,6 +77,7 @@ edaf80::Assignment3::~Assignment3()
 	bonobo::deinit();
 }
 
+
 void
 edaf80::Assignment3::run()
 {
@@ -49,6 +88,8 @@ edaf80::Assignment3::run()
 
 	// Create the shader programs
 	ShaderProgramManager program_manager;
+
+
 
 GLuint fallback_shader = 0u;
 	program_manager.CreateAndRegisterProgram("Fallback",
@@ -105,6 +146,28 @@ GLuint fallback_shader = 0u;
 	}
 
 
+
+	GLuint cloud_shader2 = 0u;
+	program_manager.CreateAndRegisterProgram("cloud",
+		{ { ShaderType::vertex, "EDAN35/resolve.vert" },
+		   { ShaderType::fragment, "EDAN35/cloud.frag" } },
+		cloud_shader2);
+
+	if (cloud_shader2 == 0u) {
+		LogError("Failed to load cloud shader");
+	}
+
+	GLuint cloud_shader = 0u;
+	program_manager.CreateAndRegisterProgram("cloud",
+		{ { ShaderType::vertex, "EDAN35/cloud.vert" },
+		   { ShaderType::fragment, "EDAN35/cloud.frag" } },
+		cloud_shader);
+	
+	if (cloud_shader == 0u) {
+		LogError("Failed to load cloud shader");
+	}
+
+
 	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
 	auto const set_uniforms = [&light_position](GLuint program){
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
@@ -124,7 +187,7 @@ GLuint fallback_shader = 0u;
 	//
 	// Set up the two spheres used.
 	//
-	auto skybox_shape = parametric_shapes::createSphere(20.0f, 100u, 100u);
+	auto skybox_shape = parametric_shapes::createSphere(50.0f, 100u, 100u);
 	if (skybox_shape.vao == 0u) {
 		LogError("Failed to retrieve the mesh for the skybox");
 		return;
@@ -181,6 +244,10 @@ GLuint fallback_shader = 0u;
 	glClearDepthf(1.0f);
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
 
 
 	auto lastTime = std::chrono::high_resolution_clock::now();
@@ -196,12 +263,25 @@ GLuint fallback_shader = 0u;
 	float basis_thickness_scale = 1.0f;
 	float basis_length_scale = 1.0f;
 
+	auto BoundsMin = glm::vec3(-50.0f, 15.0f, -50.0f);
+	auto BoundsMax = glm::vec3(50.0f, 25.0f, 50.0f);
+	auto cloudOffset = glm::vec3(0.0f, 0.0f, 0.0f);
+	float cloudScale = 15.0f;
+	
+	float cloudDensityThreshold = 0.385f;
+	float cloudDensityMultiplier = 0.33f;
+	int cloudSampleCount = 100;
+
+	float cloudDetailScale = 0.25f;
+	float cloudDetailMultiplier = 0.5f; 
+
 	changeCullMode(cull_mode);
 
 	while (!glfwWindowShouldClose(window)) {
 		auto const nowTime = std::chrono::high_resolution_clock::now();
 		auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
 		lastTime = nowTime;
+		// Assume these variables are declared elsewhere in your code
 
 		auto& io = ImGui::GetIO();
 		inputHandler.SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
@@ -240,12 +320,10 @@ GLuint fallback_shader = 0u;
 		int framebuffer_width, framebuffer_height;
 		glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
-
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
 		mWindowManager.NewImGuiFrame();
-
-
-		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+		
 		bonobo::changePolygonMode(polygon_mode);
 
 		skybox.get_transform().SetTranslate(camera_position);
@@ -253,6 +331,84 @@ GLuint fallback_shader = 0u;
 		skybox.render(mCamera.GetWorldToClipMatrix());
 		demo_sphere.render(mCamera.GetWorldToClipMatrix());
 
+
+		glEnable(GL_BLEND);
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
+
+		glUseProgram(cloud_shader2);
+
+		//-----------------cloud shader-----------------
+		// Create a custom framebuffer object (FBO)
+		//GLuint customFBO;
+		//glGenFramebuffers(1, &customFBO);
+		//glBindFramebuffer(GL_FRAMEBUFFER, customFBO);
+		//
+		//// Create and bind a depth texture buffer
+		//GLuint depthTexture;
+		//glGenTextures(1, &depthTexture);
+		//glBindTexture(GL_TEXTURE_2D, depthTexture);
+		//
+		//// Set the base level of the texture
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0); // Set base level to 1 or the appropriate level
+		//
+
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, framebuffer_width, framebuffer_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, framebuffer_width, framebuffer_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		//
+		//// Attach the depth texture to the custom FBO
+		//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+		//
+		//// Check if framebuffer is complete
+		//if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		//	// Handle framebuffer incomplete error here
+		//	printf("Framebuffer incomplete\n");
+		//}
+		//
+		//// Bind your custom FBO for rendering
+		//glBindFramebuffer(GL_FRAMEBUFFER, customFBO);
+		//
+		//// Use your cloud shader program
+		//glUseProgram(cloud_shader2);
+
+
+		// Pass depth texture to cloud shader
+		//glActiveTexture(GL_TEXTURE0); // Use texture unit 0
+		//glBindTexture(GL_TEXTURE_2D, depthTexture);
+		//glUniform1i(glGetUniformLocation(cloud_shader2, "depthTexture"), 0); // Bind to texture unit 0
+
+		// Other uniform assignments for cloud shader
+
+		glUniform3fv(glGetUniformLocation(cloud_shader2, "camera_position"), 1, glm::value_ptr(camera_position));
+		glUniform3fv(glGetUniformLocation(cloud_shader2, "light_position"), 1, glm::value_ptr(light_position));
+		glUniform2fv(glGetUniformLocation(cloud_shader2, "view_port"), 1, glm::value_ptr(glm::vec3(framebuffer_width, framebuffer_height, 0.0f)));
+		//printf("%d %d\n", framebuffer_width, framebuffer_height);
+		glUniformMatrix4fv(glGetUniformLocation(cloud_shader2, "inv_proj"), 1, GL_FALSE, glm::value_ptr(mCamera.GetClipToViewMatrix()));
+		glUniformMatrix4fv(glGetUniformLocation(cloud_shader2, "inv_view"), 1, GL_FALSE, glm::value_ptr(mCamera.GetViewToWorldMatrix()));
+
+		glUniform3fv(glGetUniformLocation(cloud_shader2, "BoundsMin"), 1, glm::value_ptr(BoundsMin)); 
+		glUniform3fv(glGetUniformLocation(cloud_shader2, "BoundsMax"), 1, glm::value_ptr(BoundsMax)); 
+		glUniform3fv(glGetUniformLocation(cloud_shader2, "cloudOffset"), 1, glm::value_ptr(cloudOffset)); 
+		glUniform1f(glGetUniformLocation(cloud_shader2, "cloudScale"), cloudScale);
+		
+		glUniform1f(glGetUniformLocation(cloud_shader2, "cloudDensityThreshold"), cloudDensityThreshold);
+		glUniform1f(glGetUniformLocation(cloud_shader2, "cloudDensityMultiplier"), cloudDensityMultiplier);
+		glUniform1i(glGetUniformLocation(cloud_shader2, "cloudSampleCount"), cloudSampleCount);
+
+		glUniform1f(glGetUniformLocation(cloud_shader2, "cloudDetailScale"), cloudDetailScale);
+		glUniform1f(glGetUniformLocation(cloud_shader2, "cloudDetailMultiplier"), cloudDetailMultiplier);
+
+		// Unbind custom FBO and depth texture
+		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//glBindTexture(GL_TEXTURE_2D, 0);
+
+		render_quad();
+		glDisable(GL_BLEND);
+		glDisable(GL_CULL_FACE);
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -282,6 +438,19 @@ GLuint fallback_shader = 0u;
 			ImGui::Checkbox("Show basis", &show_basis);
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
+			ImGui::Separator();
+			ImGui::SliderFloat3("BoundsMin", glm::value_ptr(BoundsMin), -100.0f, 100.0f);
+			ImGui::SliderFloat3("BoundsMax", glm::value_ptr(BoundsMax), -100.0f, 100.0f);
+			ImGui::SliderFloat3("cloudOffset", glm::value_ptr(cloudOffset), -100.0f, 100.0f);
+			ImGui::SliderFloat("cloudScale", &cloudScale, 0.0f, 100.0f);
+			ImGui::SliderFloat("cloudDensityThreshold", &cloudDensityThreshold, 0.0f, 1.0f);
+			ImGui::SliderFloat("cloudDensityMultiplier", &cloudDensityMultiplier, 0.0f, 1.0f);
+			ImGui::SliderInt("cloudSampleCount", &cloudSampleCount, 0, 1000);
+			ImGui::Separator();
+			ImGui::SliderFloat("cloudDetailScale", &cloudDetailScale, 0.0f, 5);
+			ImGui::SliderFloat("cloudDetailMultiplier", &cloudDetailMultiplier, 0.0f, 1.0f);
+			
+			ImGui::Separator();
 		}
 		ImGui::End();
 
