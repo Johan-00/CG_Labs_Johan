@@ -58,23 +58,6 @@ in VS_OUT{
 out vec4 fColor;
 
 
-vec2 rayBoxDst(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 rayDir){
-	vec3 t0s = (boundsMin - rayOrigin) / rayDir;
-	vec3 t1s = (boundsMax - rayOrigin) / rayDir;
-
-	vec3 tmin = min(t0s, t1s);
-	vec3 tmax = max(t0s, t1s);
-
-	float dstA = max(max(tmin.x, tmin.y), tmin.z);
-	float dstB = min(min(tmax.x, tmax.y), tmax.z);
-
-	float dstToBox = max(0, dstA);
-	float dstInsideBox = max(0,dstB - dstToBox);
-
-	return vec2(dstToBox, dstInsideBox);
-	}
-
-
 float r(vec3 n)
 {
  	return fract(cos(n.x*89.42+n.y*23.62+n.z*45.13)*343.42);
@@ -122,6 +105,30 @@ float PerlinNoise3D(vec3 p){
 	return z;
 	}
 
+vec2 rayBoxDst(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 rayDir){
+	vec3 t0s = (boundsMin - rayOrigin) / rayDir;
+	vec3 t1s = (boundsMax - rayOrigin) / rayDir;
+
+	vec3 tmin = min(t0s, t1s);
+	vec3 tmax = max(t0s, t1s);
+
+	float dstA = max(max(tmin.x, tmin.y), tmin.z);
+	float dstB = min(min(tmax.x, tmax.y), tmax.z);
+
+	float dstToBox = max(0, dstA);
+	float dstInsideBox = max(0,dstB - dstToBox);
+
+	return vec2(dstToBox, dstInsideBox);
+	}
+
+// Function to calculate the minimum distance from a point to a cuboid
+float min_distance_to_cuboid(vec3 p) {
+    float dx = min(abs(p.x - BoundsMin.x), abs(p.x - BoundsMax.x));
+    //float dy = min(abs(p.y - BoundsMin.y), abs(p.y - BoundsMax.y));
+    float dz = min(abs(p.z - BoundsMin.z), abs(p.z - BoundsMax.z));
+
+    return min(dx, dz);
+}
 
 float sampleDensety(vec3 pos){
 	vec3 p = pos*0.01*cloudScale+cloudOffset*0.1f;
@@ -129,15 +136,36 @@ float sampleDensety(vec3 pos){
 	float d = PerlinNoise3D(pos*cloudDetailScale);
 	d = max(0,d)*cloudDetailMultiplier;
 	c = max(0,c-cloudDensityThreshold)*cloudDensityMultiplier;
-	return (c*(1-d));
+	float min_dist = min_distance_to_cuboid(pos);
+	float cloudDistanceFade = smoothstep(0,30,min_dist);
+	return (c*(1-d))*cloudDistanceFade;
 	}
 
+float lightmarch(vec3 p){
+	vec3 dirToLight = normalize(vs_in.world_light);
+	float dstInsideBox = rayBoxDst(BoundsMin, BoundsMax, p, dirToLight).y;
 
+
+	int numStepsLight = 5;
+	float lightAbsorbtionTowardSun = 0.85;
+	float darknessThreshold = 0.07;
+
+	float stepSize = dstInsideBox/numStepsLight;
+	float totalDensity = 0;
+
+	for(int i = 0;i<numStepsLight;i++){
+		 vec3 pos = p + dirToLight * stepSize * i;
+		totalDensity += max(0,sampleDensety(pos)*stepSize);
+		}
+	float transmittance = exp(-totalDensity*lightAbsorbtionTowardSun);
+	
+	return darknessThreshold + transmittance * (1-darknessThreshold);
+	}
 
 void main()
 {
-	vec2 texcoords = vec2(gl_FragCoord.x/view_port.x,gl_FragCoord.y/view_port.y);//
-	float depth = texture(depthTexture, texcoords).x;//
+	//vec2 texcoords = vec2(gl_FragCoord.x/view_port.x,gl_FragCoord.y/view_port.y);
+	//float depth = texture(depthTexture, texcoords).x;
 
 	float x = 2.0 * gl_FragCoord.x / view_port.x - 1.0;
 	float y = 2.0 * gl_FragCoord.y / view_port.y - 1.0;
@@ -147,35 +175,48 @@ void main()
 	ray_view = vec4(ray_view.xy, -1.0, 0.0);
 	vec3 ray_world = (inv_view * ray_view).xyz;
 	ray_world = normalize(ray_world);
+	vec3 rayPos = vec3(0.0f,0.0f,0.0f);
 
 	vec3 rayOrigin = vs_in.world_camera_pos;
 	vec2 t = rayBoxDst(BoundsMin, BoundsMax, rayOrigin, ray_world);
 	float dstToBox = t.x;
 	float dstInsideBox = t.y;
 	if(dstInsideBox > 0.2 ){
-		//int steps = 100;
-		float dstTravelled=0;
 		float stepSize = dstInsideBox/cloudSampleCount;
 		float dstLimit = dstInsideBox+dstToBox;
-		dstTravelled = dstToBox; 
+		float dstTravelled = dstToBox; 
 		
+	
+		float lightAbsorbtionThroughCloud = 0.94;
+		//float lightTransmittance = 0.5;
+		float phaseVal = 0.74;
+
 		//march through volume
-		float totalDensety = 0 ;
+		float transmittance = 1;
+		float lightEnergy = 0;
+
 		while(dstTravelled <dstLimit){
-			vec3 pos = rayOrigin + ray_world * dstTravelled;
-			totalDensety += sampleDensety(pos)*stepSize;
-			dstTravelled += stepSize;
+			rayPos = rayOrigin+ray_world*dstTravelled;
+			float density = sampleDensety(rayPos);
+			if(density > 0.01){
+				float light = lightmarch(rayPos);
+				lightEnergy += density*stepSize*transmittance*light*phaseVal;
+				transmittance *= exp(-density*stepSize*lightAbsorbtionThroughCloud);
+				if(transmittance < 0.01){
+					break;
+				}
+		
 			}
-		float alpha =1-exp(-totalDensety);
-		fColor = vec4(1,1,1,alpha);
+			dstTravelled += stepSize;
+		}
+		vec3 lightColor = vec3(1.0f,1.0f,1.0f);
+		vec3 color = lightColor*lightEnergy;
+		fColor = vec4(color,(1-transmittance));
+
 	}
-	//float c = worley(texcoords,0.1);
-	//float c = PerlinNoise3D(vec3(texcoords.x,texcoords.y,1.0f)*cloudScale);
-	//fColor = vec4(c,c,c,1.0f);
-	//if(depth > 1.0f ||depth <= 1.0f){
-	//	vec4(1.0f,1.0f,1.0f,1.0f);
-	//}
-	//fColor = vec4(-BoundsMin.x/100,0.0f,0.0f,1.0f);
+	else{
+		fColor = vec4(0.0f,0.0f,0.0f,0.0f);
+		}
 
 
 }

@@ -167,8 +167,18 @@ GLuint fallback_shader = 0u;
 		LogError("Failed to load cloud shader");
 	}
 
+	GLuint sky_shader = 0u;
+	program_manager.CreateAndRegisterProgram("sky",
+		{ { ShaderType::vertex, "EDAN35/sky.vert" },
+		   { ShaderType::fragment, "EDAN35/sky.frag" } },
+		sky_shader);
 
-	auto light_position = glm::vec3(-2.0f, 4.0f, 2.0f);
+	if (sky_shader == 0u) {
+		LogError("Failed to load cloud shader");
+	}
+
+
+	auto light_position = glm::vec3(10000.0f, 10000.0f, 10000.0f);
 	auto const set_uniforms = [&light_position](GLuint program){
 		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
 	};
@@ -184,6 +194,11 @@ GLuint fallback_shader = 0u;
 
 	};
 
+	auto const sky_set_uniforms = [&light_position, &camera_position](GLuint program) {
+		glUniform3fv(glGetUniformLocation(program, "light_position"), 1, glm::value_ptr(light_position));
+		glUniform3fv(glGetUniformLocation(program, "camera_position"), 1, glm::value_ptr(camera_position));
+		};
+
 	//
 	// Set up the two spheres used.
 	//
@@ -195,7 +210,7 @@ GLuint fallback_shader = 0u;
 
 	Node skybox;
 	skybox.set_geometry(skybox_shape);
-	skybox.set_program(&skybox_shader, set_uniforms);
+	skybox.set_program(&sky_shader, sky_set_uniforms);
 
 	auto demo_shape = parametric_shapes::createSphere(1.5f, 40u, 40u);
 	if (demo_shape.vao == 0u) {
@@ -218,22 +233,22 @@ GLuint fallback_shader = 0u;
 	// Load cube map and other textures
 	//std::string skyboxtexture = "LarnacaCastle";
 	//std::string skyboxtexture = "Maskonaive2";
-	std::string skyboxtexture = "NissiBeach2";
+	//std::string skyboxtexture = "NissiBeach2";
 	//std::string skyboxtexture = "Teide";
-	auto cube_map_id = bonobo::loadTextureCubeMap(
-		config::resources_path("cubemaps/"+skyboxtexture+"/posx.jpg"),
-		config::resources_path("cubemaps/"+skyboxtexture+"/negx.jpg"),
-		config::resources_path("cubemaps/"+skyboxtexture+"/posy.jpg"),
-		config::resources_path("cubemaps/"+skyboxtexture+"/negy.jpg"),
-		config::resources_path("cubemaps/"+skyboxtexture+"/posz.jpg"),
-		config::resources_path("cubemaps/"+skyboxtexture+"/negz.jpg"));
+	//auto cube_map_id = bonobo::loadTextureCubeMap(
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/posx.jpg"),
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/negx.jpg"),
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/posy.jpg"),
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/negy.jpg"),
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/posz.jpg"),
+	//	config::resources_path("cubemaps/"+skyboxtexture+"/negz.jpg"));
 
 	auto diffuse_texture_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_coll1_2k.jpg"));
 	auto specular_texture_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_rough_2k.jpg"));
 	auto normal_map_id = bonobo::loadTexture2D(config::resources_path("textures/leather_red_02_nor_2k.jpg"));
 
 	//add the textures
-	skybox.add_texture("cubemap", cube_map_id, GL_TEXTURE_CUBE_MAP);
+	//skybox.add_texture("cubemap", cube_map_id, GL_TEXTURE_CUBE_MAP);
 
 	demo_sphere.add_texture("diffuse_texture", diffuse_texture_id, GL_TEXTURE_2D);
 	demo_sphere.add_texture("specular_texture", specular_texture_id, GL_TEXTURE_2D);
@@ -270,7 +285,7 @@ GLuint fallback_shader = 0u;
 	
 	float cloudDensityThreshold = 0.385f;
 	float cloudDensityMultiplier = 0.33f;
-	int cloudSampleCount = 100;
+	int cloudSampleCount = 20;
 
 	float cloudDetailScale = 0.25f;
 	float cloudDetailMultiplier = 0.5f; 
@@ -431,7 +446,7 @@ GLuint fallback_shader = 0u;
 			ImGui::ColorEdit3("Diffuse", glm::value_ptr(demo_material.diffuse));
 			ImGui::ColorEdit3("Specular", glm::value_ptr(demo_material.specular));
 			ImGui::SliderFloat("Shininess", &demo_material.shininess, 1.0f, 1000.0f);
-			ImGui::SliderFloat3("Light Position", glm::value_ptr(light_position), -20.0f, 20.0f);
+			ImGui::SliderFloat3("Light Position", glm::value_ptr(light_position), -10000.0f, 10000.0f);
 			ImGui::Separator();
 			ImGui::Checkbox("Use orbit camera", &use_orbit_camera);
 			ImGui::Separator();
@@ -439,8 +454,8 @@ GLuint fallback_shader = 0u;
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
 			ImGui::Separator();
-			ImGui::SliderFloat3("BoundsMin", glm::value_ptr(BoundsMin), -100.0f, 100.0f);
-			ImGui::SliderFloat3("BoundsMax", glm::value_ptr(BoundsMax), -100.0f, 100.0f);
+			ImGui::SliderFloat3("BoundsMin", glm::value_ptr(BoundsMin), -1000.0f, 1000.0f);
+			ImGui::SliderFloat3("BoundsMax", glm::value_ptr(BoundsMax), -1000.0f, 1000.0f);
 			ImGui::SliderFloat3("cloudOffset", glm::value_ptr(cloudOffset), -100.0f, 100.0f);
 			ImGui::SliderFloat("cloudScale", &cloudScale, 0.0f, 100.0f);
 			ImGui::SliderFloat("cloudDensityThreshold", &cloudDensityThreshold, 0.0f, 1.0f);
@@ -448,7 +463,7 @@ GLuint fallback_shader = 0u;
 			ImGui::SliderInt("cloudSampleCount", &cloudSampleCount, 0, 1000);
 			ImGui::Separator();
 			ImGui::SliderFloat("cloudDetailScale", &cloudDetailScale, 0.0f, 5);
-			ImGui::SliderFloat("cloudDetailMultiplier", &cloudDetailMultiplier, 0.0f, 1.0f);
+			ImGui::SliderFloat("cloudDetailMultiplier", &cloudDetailMultiplier, 0.0f, 10.0f);
 			
 			ImGui::Separator();
 		}
