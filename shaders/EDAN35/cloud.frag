@@ -1,11 +1,4 @@
 #version 410
-
-
-uniform vec3 ambient_colour; 
-uniform vec3 diffuse_colour;
-uniform vec3 specular_colour;
-
-
 //cloud shape
 uniform vec3 BoundsMin;
 uniform vec3 BoundsMax;
@@ -14,20 +7,15 @@ uniform float cloudScale;
 uniform float cloudDensityThreshold;
 uniform float cloudDensityMultiplier;
 uniform int cloudSampleCount;
+uniform float elapsed_time_s;
 
 //detail cloud
 uniform float cloudDetailScale;
 uniform float cloudDetailMultiplier;
 
-
-uniform float shininess_value;
-
-uniform sampler2D diffuse_texture;
-uniform sampler2D specular_texture;
-uniform sampler2D normal_map;
-uniform sampler2D noise_texture;
-
 uniform sampler2D depthTexture;
+uniform float mNear;
+uniform float mFar;
 
 uniform vec2 view_port;
 uniform mat4 inv_proj;
@@ -37,10 +25,6 @@ uniform mat4 vertex_model_to_world;
 uniform mat4 normal_model_to_world;
 uniform mat4 vertex_world_to_clip;
 
-
-
-uniform bool use_normal_mapping;
-uniform bool use_texture;
 
 in VS_OUT{
 	vec3 world_camera;	// View vector (from VS) fv
@@ -131,13 +115,14 @@ float min_distance_to_cuboid(vec3 p) {
 }
 
 float sampleDensety(vec3 pos){
-	vec3 p = pos*0.01*cloudScale+cloudOffset*0.1f;
+	pos = pos + cloudOffset*elapsed_time_s;
+	vec3 p = pos*0.01*cloudScale;
 	float c = 1-worley(p,1.0f);
 	float d = PerlinNoise3D(pos*cloudDetailScale);
 	d = max(0,d)*cloudDetailMultiplier;
 	c = max(0,c-cloudDensityThreshold)*cloudDensityMultiplier;
 	float min_dist = min_distance_to_cuboid(pos);
-	float cloudDistanceFade = smoothstep(0,30,min_dist);
+	float cloudDistanceFade = smoothstep(0,60,min_dist);
 	return (c*(1-d))*cloudDistanceFade;
 	}
 
@@ -164,8 +149,14 @@ float lightmarch(vec3 p){
 
 void main()
 {
-	//vec2 texcoords = vec2(gl_FragCoord.x/view_port.x,gl_FragCoord.y/view_port.y);
-	//float depth = texture(depthTexture, texcoords).x;
+	vec2 texcoords = vec2(gl_FragCoord.x/view_port.x,gl_FragCoord.y/view_port.y);
+	float depth = (texture(depthTexture, texcoords).x);
+	float linearDepth = (2.0 * mNear * mFar) / (mFar + mNear - depth * (mFar - mNear));
+	//float linearDepth = (2.0 * mNear) / (mFar + mNear - depth * (mFar - mNear));
+	// remap depf using camra view matrix
+
+
+
 
 	float x = 2.0 * gl_FragCoord.x / view_port.x - 1.0;
 	float y = 2.0 * gl_FragCoord.y / view_port.y - 1.0;
@@ -181,7 +172,7 @@ void main()
 	vec2 t = rayBoxDst(BoundsMin, BoundsMax, rayOrigin, ray_world);
 	float dstToBox = t.x;
 	float dstInsideBox = t.y;
-	if(dstInsideBox > 0.2 ){
+	if(dstInsideBox > 0.2 && dstToBox<linearDepth){
 		float stepSize = dstInsideBox/cloudSampleCount;
 		float dstLimit = dstInsideBox+dstToBox;
 		float dstTravelled = dstToBox; 
@@ -216,7 +207,8 @@ void main()
 	}
 	else{
 		fColor = vec4(0.0f,0.0f,0.0f,0.0f);
-		}
 
+
+		}
 
 }

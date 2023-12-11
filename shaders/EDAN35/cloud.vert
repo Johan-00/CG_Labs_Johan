@@ -45,6 +45,6 @@ void main()
 	vs_out.world_light = light_position - (vertex_model_to_world * vec4(vertex, 1.0)).xyz;
 	vs_out.TBN = TBN;
 
-	gl_Position = vertex_world_to_clip * vertex_model_to_world * vec4(vertex, 1.0);
+	gl_Position = vertex_world_to_clip * vertex_model_to_world * vec4(vertex.xy,vertex.z+0.1, 1.0);
 	//gl_Position = vec4(vertex, 1.0);
 }

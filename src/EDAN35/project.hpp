@@ -8,22 +8,22 @@
 class Window;
 
 
-namespace edan35
+namespace edaf80
 {
-	//! \brief Wrapper class for Assignment 2
-	class project {
+	//! \brief Wrapper class for Assignment 4
+	class Assignment4 {
 	public:
 		//! \brief Default constructor.
 		//!
 		//! It will initialise various modules of bonobo and retrieve a
 		//! window to draw to.
-		project(WindowManager& windowManager);
+		Assignment4(WindowManager& windowManager);
 
 		//! \brief Default destructor.
 		//!
 		//! It will release the bonobo modules initialised by the
 		//! constructor, as well as the window.
-		~project();
+		~Assignment4();
 
 		//! \brief Contains the logic of the assignment, along with the
 		//! render loop.
@@ -33,6 +33,6 @@ namespace edan35
 		FPSCameraf     mCamera;
 		InputHandler   inputHandler;
 		WindowManager& mWindowManager;
-		GLFWwindow*    window;
+		GLFWwindow* window;
 	};
 }
