@@ -264,7 +264,7 @@ edaf80::Assignment4::run()
 	GLuint depthTexture;
 	glGenTextures(1, &depthTexture);
 	glBindTexture(GL_TEXTURE_2D, depthTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, framebuffer_width, framebuffer_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, 1920, 1080, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 1920, 1080, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	
 	
@@ -299,23 +299,23 @@ edaf80::Assignment4::run()
 	float basis_thickness_scale = 1.0f;
 	float basis_length_scale = 1.0f;
 
-	auto BoundsMin = glm::vec3(-310.0f, 105.0f, -310.0f);
-	auto BoundsMax = glm::vec3(310.0f, 120.0f, 310.0f);
-	auto cloudOffset = glm::vec3(-1.0f, 0.0f, 0.0f);
-	float cloudScale = 3.0f;
+	auto BoundsMin = glm::vec3(-1000.0f, 105.0f, -1000.0f);
+	auto BoundsMax = glm::vec3(1000.0f, 132.0f, 1000.0f);
+	auto cloudOffset = glm::vec3(-8.0f, 0.0f, 0.0f);
+	float cloudScale = 1.5f;
 
 	float cloudDensityThreshold = 0.385f;
-	float cloudDensityMultiplier = 0.33f;
+	float cloudDensityMultiplier = 0.274f;
 	int cloudSampleCount = 20;
 
-	float cloudDetailScale = 0.25f;
-	float cloudDetailMultiplier = 0.5f;
+	float cloudDetailScale = 0.068f;
+	float cloudDetailMultiplier = 1.96f;
 	//cloud lighting
-	int numStepsLight = 5;
-	float lightAbsorbtionTowardSun = 0.85;
-	float darknessThreshold = 0.07;
-	float lightAbsorbtionThroughCloud = 0.94;
-	float phaseVal = 0.74; 
+	int numStepsLight = 3;
+	float lightAbsorbtionTowardSun = 0.4;
+	float darknessThreshold = 0.14;
+	float lightAbsorbtionThroughCloud = 0.75;
+	float phaseVal = 0.57; 
 
 	changeCullMode(cull_mode);
 
@@ -367,7 +367,7 @@ edaf80::Assignment4::run()
 
 		// Render to the depth texture
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, depthFramebuffer);
-		glViewport(0, 0, framebuffer_width, framebuffer_height);
+		glViewport(0, 0, 1920, 1080);
 		glClear(GL_DEPTH_BUFFER_BIT);
 		if (!shader_reload_failed) {
 			//skybox.render(mCamera.GetWorldToClipMatrix());
@@ -478,7 +478,7 @@ edaf80::Assignment4::run()
 			ImGui::SliderFloat("cloudDensityMultiplier", &cloudDensityMultiplier, 0.0f, 1.0f);
 			ImGui::SliderInt("cloudSampleCount", &cloudSampleCount, 0, 1000);
 			ImGui::Separator();
-			ImGui::SliderFloat("cloudDetailScale", &cloudDetailScale, 0.0f, 5);
+			ImGui::SliderFloat("cloudDetailScale", &cloudDetailScale, 0.0f, 1);
 			ImGui::SliderFloat("cloudDetailMultiplier", &cloudDetailMultiplier, 0.0f, 10.0f);
 			ImGui::Separator();
 			ImGui::SliderInt("numStepsLight", &numStepsLight, 0, 100);
