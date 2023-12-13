@@ -81,7 +81,7 @@ edaf80::Assignment4::run()
 	//mCamera.mFar = 100.0f;
 
 	glm::vec3 deep_color = glm::vec3(0.0f, 0.0f, 0.1f);
-	glm::vec3 shallow_color = glm::vec3(0.0f, 0.5f, 0.5f);
+	glm::vec3 shallow_color = glm::vec3(15.0f/255.0f, 98.0f /255.0f, 157.0f /255.0f);
 
 	float amplitudes[2] = { 1.0, 0.5 };
 	float frequencies[2] = { 0.2, 0.4 };
@@ -160,14 +160,13 @@ edaf80::Assignment4::run()
 
 	GLuint cloud_shader = 0u;
 	program_manager.CreateAndRegisterProgram("cloud",
-		{ { ShaderType::vertex, "EDAN35/resolve.vert" },
+		{ { ShaderType::vertex, "EDAN35/cloud.vert" },
 		   { ShaderType::fragment, "EDAN35/cloud.frag" } },
 		cloud_shader);
 
 	if (cloud_shader == 0u) {
 		LogError("Failed to load cloud shader");
 	}
-
 
 	auto light_position = glm::vec3(500.0f, 500.0f, 500.0f);
 	auto const set_uniforms = [&light_position](GLuint program) {
@@ -178,12 +177,12 @@ edaf80::Assignment4::run()
 	//
 	// Set up shapes.
 	//
-	auto skybox_shape = parametric_shapes::createSphere(400.0f, 100u, 100u);
+	auto skybox_shape = parametric_shapes::createSphere(200.0f, 100u, 100u);
 	if (skybox_shape.vao == 0u) {
 		LogError("Failed to retrieve the mesh for the skybox");
 		return;
 	}
-	auto water_shape = parametric_shapes::createQuad(800.0f, 800.0f, 1000.0f, 1000.0f);
+	auto water_shape = parametric_shapes::createQuad(1500.0f, 1500.0f, 1000.0f, 1000.0f);
 	if (water_shape.vao == 0u) {
 		LogError("Failed to retrieve the mesh for the demo sphere");
 		return;
@@ -196,7 +195,7 @@ edaf80::Assignment4::run()
 
 	Node demo_sphere;
 	demo_sphere.set_geometry(demo_shape);
-	demo_sphere.set_program(&diffuse_shader);
+	demo_sphere.set_program(&diffuse_shader, set_uniforms);
 
 
 
@@ -228,7 +227,7 @@ edaf80::Assignment4::run()
 
 	Node water;
 	water.set_geometry(water_shape);
-	water.get_transform().SetTranslate(glm::vec3(-50.0f, -5.0f, -50.0f));
+	water.get_transform().SetTranslate(glm::vec3(-500.0f, -5.0f, -500.0f));
 	water.set_program(&water_shader, water_set_uniforms);
 
 	//Load cube map and other textures
@@ -258,11 +257,14 @@ edaf80::Assignment4::run()
 	glGenFramebuffers(1, &depthFramebuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, depthFramebuffer);
 
+	int framebuffer_width, framebuffer_height;
+	glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+
 	//Create a texture to hold the depth information
 	GLuint depthTexture;
 	glGenTextures(1, &depthTexture);
 	glBindTexture(GL_TEXTURE_2D, depthTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, 1920, 1080, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, framebuffer_width, framebuffer_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 1920, 1080, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	
 	
@@ -308,6 +310,12 @@ edaf80::Assignment4::run()
 
 	float cloudDetailScale = 0.25f;
 	float cloudDetailMultiplier = 0.5f;
+	//cloud lighting
+	int numStepsLight = 5;
+	float lightAbsorbtionTowardSun = 0.85;
+	float darknessThreshold = 0.07;
+	float lightAbsorbtionThroughCloud = 0.94;
+	float phaseVal = 0.74; 
 
 	changeCullMode(cull_mode);
 
@@ -344,8 +352,9 @@ edaf80::Assignment4::run()
 			show_logs = !show_logs;
 		if (inputHandler.GetKeycodeState(GLFW_KEY_F2) & JUST_RELEASED)
 			show_gui = !show_gui;
-		if (inputHandler.GetKeycodeState(GLFW_KEY_F11) & JUST_RELEASED)
+		if (inputHandler.GetKeycodeState(GLFW_KEY_F11) & JUST_RELEASED) {
 			mWindowManager.ToggleFullscreenStatusForWindow(window);
+		}
 		if (inputHandler.GetKeycodeState(GLFW_KEY_1) & JUST_PRESSED) {
 			water.set_program(&fallback_shader, set_uniforms);
 		}
@@ -361,7 +370,7 @@ edaf80::Assignment4::run()
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
 		glClear(GL_DEPTH_BUFFER_BIT);
 		if (!shader_reload_failed) {
-			skybox.render(mCamera.GetWorldToClipMatrix());
+			//skybox.render(mCamera.GetWorldToClipMatrix());
 			water.render(mCamera.GetWorldToClipMatrix());
 			demo_sphere.render(mCamera.GetWorldToClipMatrix());
 		}
@@ -381,7 +390,7 @@ edaf80::Assignment4::run()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); 
 		glEnable(GL_BLEND); 
 		glEnable(GL_CULL_FACE); 
-		glCullFace(GL_BACK);
+		glCullFace(GL_BACK); 
 
 		glUseProgram(cloud_shader);
 
@@ -405,15 +414,22 @@ edaf80::Assignment4::run()
 		glUniform1f(glGetUniformLocation(cloud_shader, "cloudDetailScale"), cloudDetailScale);
 		glUniform1f(glGetUniformLocation(cloud_shader, "cloudDetailMultiplier"), cloudDetailMultiplier);
 
+		glUniform1i(glGetUniformLocation(cloud_shader, "numStepsLight"), numStepsLight);
+		glUniform1f(glGetUniformLocation(cloud_shader, "lightAbsorbtionTowardSun"), lightAbsorbtionTowardSun);
+		glUniform1f(glGetUniformLocation(cloud_shader, "darknessThreshold"), darknessThreshold);
+		glUniform1f(glGetUniformLocation(cloud_shader, "lightAbsorbtionThroughCloud"), lightAbsorbtionThroughCloud); 
+		glUniform1f(glGetUniformLocation(cloud_shader, "phaseVal"), phaseVal); 
+
+
+
 		// import mCamera.mNear, mCamera.mFar into cloud shader
 		glUniform1f(glGetUniformLocation(cloud_shader, "mNear"), mCamera.mNear);
 		glUniform1f(glGetUniformLocation(cloud_shader, "mFar"), mCamera.mFar);
-		printf("mNear: %f, mFar: %f\n", mCamera.mNear, mCamera.mFar);
+		//printf("mNear: %f, mFar: %f\n", mCamera.mNear, mCamera.mFar);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, depthTexture);
 		glUniform1i(glGetUniformLocation(cloud_shader, "depthTexture"), 0);
-
 
 		render_quad();
 		glDisable(GL_BLEND);
@@ -464,6 +480,12 @@ edaf80::Assignment4::run()
 			ImGui::Separator();
 			ImGui::SliderFloat("cloudDetailScale", &cloudDetailScale, 0.0f, 5);
 			ImGui::SliderFloat("cloudDetailMultiplier", &cloudDetailMultiplier, 0.0f, 10.0f);
+			ImGui::Separator();
+			ImGui::SliderInt("numStepsLight", &numStepsLight, 0, 100);
+			ImGui::SliderFloat("lightAbsorbtionTowardSun", &lightAbsorbtionTowardSun, 0.0f, 3.0f);
+			ImGui::SliderFloat("darknessThreshold", &darknessThreshold, 0.0f, 3.0f);
+			ImGui::SliderFloat("lightAbsorbtionThroughCloud", &lightAbsorbtionThroughCloud, 0.0f, 5.0f);
+			ImGui::SliderFloat("phaseVal", &phaseVal, 0.0f, 5.0f);
 			ImGui::Separator();
 		}
 		ImGui::End();

@@ -25,7 +25,7 @@ void main()
 	mat3 TBN_water = mat3(normalize(fs_in.tangent_water), normalize(fs_in.binormal_water), normalize(fs_in.normal_water));
 	vec2 texScale = vec2(8, 4);
 	float normalTime = mod(elapsed_time_s, 100.0);
-	vec2 normalSpeed = vec2(-0.05, 0);
+	vec2 normalSpeed = vec2(-0.001, 0);
 	vec3 normal = vec3(0.0);
 
 	vec3 V = normalize(camera_position - fs_in.vertex);

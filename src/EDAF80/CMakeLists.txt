@@ -22,14 +22,6 @@ target_sources (
 )
 target_link_libraries (plane PRIVATE bonobo CG_Labs_options)
 
-add_library (texture STATIC)
-target_sources (
-       texture
-       PUBLIC [[texture.hpp]]
-       PRIVATE [[texture.cpp]]
-)
-target_link_libraries (texture PRIVATE bonobo CG_Labs_options)
-
 
 # Assignment 1
 add_executable (EDAF80_Assignment1)

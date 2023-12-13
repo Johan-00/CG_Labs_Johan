@@ -8,6 +8,7 @@ layout(location = 4) in vec3 binormal;
 
 uniform vec3 light_position;
 uniform vec3 camera_position;
+uniform vec2 view_port;	
 
 uniform mat4 vertex_model_to_world;
 uniform mat4 normal_model_to_world;
@@ -35,7 +36,6 @@ void main()
 	mat3 TBN = mat3(T, B, N);
 
 
-
 	vs_out.world_vertex = vec3(vertex_model_to_world * vec4(vertex, 1.0));
 	vs_out.world_normal = (normal_model_to_world * vec4(normal, 0.0)).xyz;
 	vs_out.texcoords = texcoords.xy;
@@ -44,7 +44,7 @@ void main()
 	vs_out.world_camera_pos = camera_position;
 	vs_out.world_light = light_position - (vertex_model_to_world * vec4(vertex, 1.0)).xyz;
 	vs_out.TBN = TBN;
+	vs_out.view_port = view_port;
 
-	gl_Position = vertex_world_to_clip * vertex_model_to_world * vec4(vertex.xy,vertex.z+0.1, 1.0);
-	//gl_Position = vec4(vertex, 1.0);
+	gl_Position = vec4(vertex, 1.0);
 }
